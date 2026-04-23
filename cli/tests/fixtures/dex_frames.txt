@@ -1,0 +1,4 @@
+backtrace:
+  #00 pc 0000000000011111  /data/app/com.example.app/base.vdex/classes.dex (com.example.app.MainActivity.onCreate+88)
+  #01 pc 0000000000022222  /data/app/com.example.app/base.apk/classes2.dex (com.example.app.Worker.run+24)
+  #02 pc 0000000000033333  /system/framework/framework.jar (android.app.ActivityThread.main+220)

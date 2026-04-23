@@ -1,0 +1,4 @@
+backtrace:
+  #00 pc 000000000001d4b8  /apex/com.android.runtime/lib64/bionic/libc.so (abort+164) (BuildId: 3b5c4d7e8a9f0123)
+  #01 pc 0000000000059f88  /apex/com.android.runtime/lib64/bionic/libart.so (art_quick_invoke_stub+584) (BuildId: 7f9c0d11aa22bb33)
+  #02 pc 00000000000abcde  /system/lib64/libnativehelper.so (JNI_OnLoad+92) (BuildId: 1234abcd5678ef90)

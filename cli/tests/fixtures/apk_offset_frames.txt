@@ -1,0 +1,4 @@
+backtrace:
+  #00 pc 00000000000abcde  /system/priv-app/Velvet/Velvet.apk (offset 0x1234000) (com.example.app.NativeEntry+176)
+  #01 pc 00000000000f0123  /data/app/~~abc123/com.example.app-1/base.apk (offset 0x00456000) (Java_com_example_app_NativeEntry+44)
+  #02 pc 00000000000f0f0f  /data/app/~~abc123/com.example.app-1/split_config.arm64_v8a.apk (offset 0x0000a000) (helper::DoWork+12)

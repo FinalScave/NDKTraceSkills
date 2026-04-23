@@ -1,0 +1,17 @@
+Build fingerprint: 'Android/aosp_angler/angler:7.1.1/NYC/enh12211018:eng/test-keys'
+ABI: 'arm64'
+signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0xc
+backtrace:
+  #00 pc 000000000001d4b8  /apex/com.android.runtime/lib64/bionic/libc.so (abort+164)
+  #01 pc 0000000000059f88  /apex/com.android.runtime/lib64/bionic/libart.so (art_quick_invoke_stub+584)
+  #02 pc 00000000000abcde  /system/priv-app/Velvet/Velvet.apk (offset 0x1234000) (com.example.app.NativeEntry+176)
+
+memory map:
+  7b2c400000-7b2c422000 r-xp 00000000 08:01 1234567 /apex/com.android.runtime/lib64/bionic/libc.so
+      BuildId: 3b5c4d7e8a9f0123
+      load base: 0x7b2c400000
+  7b2c430000-7b2c45a000 r-xp 00000000 08:01 1234568 /system/lib64/libart.so
+      BuildId: 7f9c0d11aa22bb33
+      load base: 0x7b2c430000
+
+Tombstone written to: /data/tombstones/tombstone_06

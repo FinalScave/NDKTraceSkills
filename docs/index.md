@@ -1,14 +1,13 @@
 # Documentation Index
 
-This folder documents the current scaffold for NDKTraceMCP.
+This folder documents the current CLI-first workflow for NDKTraceMCP.
 
 ## Pages
 
 - [Architecture overview](architecture.md)
 - [CLI guide](cli.md)
-- [MCP server wrapper](mcp-server.md)
 - [Skill guide](skill.md)
 
 ## Status
 
-The repository now contains a working CLI scaffold, a thin MCP wrapper, and the first skill skeleton. These pages describe the current boundaries, including the shared crash artifact parser and the frame metadata contract, and the immediate extension points.
+The repository now contains a working CLI, project-aware Android resolution, and a local skill workflow. These pages describe the shared crash artifact parser, the CLI JSON contract, the project-resolution contract, and the skill strategy for CLI-first analysis with AI fallback.

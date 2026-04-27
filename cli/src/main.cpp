@@ -9,15 +9,17 @@
 namespace {
 
 using ndktrace::RestoreRequest;
+using ndktrace::ResolveProjectRequest;
 using ndktrace::ScanRequest;
 using ndktrace::ValidateRequest;
 
 void PrintUsage() {
     std::cout
         << "ndktrace-cli\n"
-        << "  restore --ndk <path> --so <path> [--stack-file <file> | --stdin] [--tool auto|symbolizer|addr2line] [--match basename|exact] [--no-recursive-so] [--pretty]\n"
+        << "  resolve-project --project <path> [--module <name>] [--variant <name>] [--abi <name>] [--library <name>] [--stack-file <file> | --stdin] [--pretty]\n"
+        << "  restore [--ndk <path>] [--so <path>] [--project <path>] [--module <name>] [--variant <name>] [--abi <name>] [--library <name>] [--stack-file <file> | --stdin] [--tool auto|symbolizer|addr2line] [--match basename|exact] [--no-recursive-so] [--pretty]\n"
         << "  scan-ndk [--pretty]\n"
-        << "  validate --ndk <path> --so <path> [--pretty]\n";
+        << "  validate [--ndk <path>] [--so <path>] [--project <path>] [--module <name>] [--variant <name>] [--abi <name>] [--library <name>] [--stack-file <file> | --stdin] [--pretty]\n";
 }
 
 std::string RequireValue(const std::vector<std::string>& args, std::size_t index, const std::string& flag) {
@@ -25,6 +27,75 @@ std::string RequireValue(const std::vector<std::string>& args, std::size_t index
         throw std::runtime_error("Missing value for " + flag);
     }
     return args[index + 1];
+}
+
+bool ParseProjectArgument(
+    const std::vector<std::string>& args,
+    std::size_t& index,
+    const std::string& arg,
+    std::string& project_path,
+    std::string& module_name,
+    std::string& variant,
+    std::string& abi,
+    std::string& library_name) {
+    if (arg == "--project") {
+        project_path = RequireValue(args, index, arg);
+        ++index;
+        return true;
+    }
+    if (arg == "--module") {
+        module_name = RequireValue(args, index, arg);
+        ++index;
+        return true;
+    }
+    if (arg == "--variant") {
+        variant = RequireValue(args, index, arg);
+        ++index;
+        return true;
+    }
+    if (arg == "--abi") {
+        abi = RequireValue(args, index, arg);
+        ++index;
+        return true;
+    }
+    if (arg == "--library") {
+        library_name = RequireValue(args, index, arg);
+        ++index;
+        return true;
+    }
+    return false;
+}
+
+ResolveProjectRequest ParseResolveProject(const std::vector<std::string>& args) {
+    ResolveProjectRequest request;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        const std::string& arg = args[i];
+        if (ParseProjectArgument(
+                args,
+                i,
+                arg,
+                request.project_path,
+                request.module_name,
+                request.variant,
+                request.abi,
+                request.library_name)) {
+            continue;
+        }
+        if (arg == "--stack-file") {
+            request.stack_file = RequireValue(args, i, arg);
+            ++i;
+        } else if (arg == "--stdin") {
+            request.read_stdin = true;
+        } else if (arg == "--pretty") {
+            request.pretty_json = true;
+        } else if (arg == "--json") {
+        } else {
+            throw std::runtime_error("Unknown argument: " + arg);
+        }
+    }
+
+    return request;
 }
 
 RestoreRequest ParseRestore(const std::vector<std::string>& args) {
@@ -51,6 +122,15 @@ RestoreRequest ParseRestore(const std::vector<std::string>& args) {
             ++i;
         } else if (arg == "--no-recursive-so") {
             request.recursive_so_search = false;
+        } else if (ParseProjectArgument(
+                       args,
+                       i,
+                       arg,
+                       request.project_path,
+                       request.module_name,
+                       request.variant,
+                       request.abi,
+                       request.library_name)) {
         } else if (arg == "--pretty") {
             request.pretty_json = true;
         } else if (arg == "--json") {
@@ -86,6 +166,20 @@ ValidateRequest ParseValidate(const std::vector<std::string>& args) {
         } else if (arg == "--so") {
             request.so_path = RequireValue(args, i, arg);
             ++i;
+        } else if (arg == "--stack-file") {
+            request.stack_file = RequireValue(args, i, arg);
+            ++i;
+        } else if (arg == "--stdin") {
+            request.read_stdin = true;
+        } else if (ParseProjectArgument(
+                       args,
+                       i,
+                       arg,
+                       request.project_path,
+                       request.module_name,
+                       request.variant,
+                       request.abi,
+                       request.library_name)) {
         } else if (arg == "--pretty") {
             request.pretty_json = true;
         } else if (arg == "--json") {
@@ -112,6 +206,13 @@ int main(int argc, char** argv) {
         if (command == "--help" || command == "-h" || command == "help") {
             PrintUsage();
             return 0;
+        }
+
+        if (command == "resolve-project") {
+            const ResolveProjectRequest request = ParseResolveProject(args);
+            const auto result = ndktrace::RunResolveProject(request);
+            std::cout << ndktrace::ToJson(result, request.pretty_json) << std::endl;
+            return result.ok ? 0 : 1;
         }
 
         if (command == "restore") {
@@ -142,4 +243,3 @@ int main(int argc, char** argv) {
         return 2;
     }
 }
-

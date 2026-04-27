@@ -20,9 +20,74 @@ struct ToolchainInfo {
     bool has_addr2line = false;
 };
 
+struct ProjectModuleCandidate {
+    std::string name;
+    std::string path;
+    bool has_native_build = false;
+    std::string ndk_version;
+    std::string ndk_path;
+};
+
+struct ProjectSymbolCandidate {
+    std::string path;
+    std::string library_name;
+    std::string source;
+    std::string module;
+    std::string variant;
+    std::string abi;
+    bool stripped = false;
+    int score = 0;
+};
+
+struct ProjectResolutionContext {
+    bool attempted = false;
+    bool ok = false;
+    std::string status = "not_requested";
+    std::string input_path;
+    std::string project_path;
+    std::string module;
+    std::string module_name;
+    std::string module_path;
+    std::string variant = "Debug";
+    std::string abi = "arm64-v8a";
+    std::string sdk_dir;
+    std::string ndk_version;
+    std::string ndk_path;
+    std::vector<ProjectModuleCandidate> module_candidates;
+    std::vector<std::string> library_names;
+    std::string preferred_symbol_path;
+    std::vector<ProjectSymbolCandidate> symbol_candidates;
+    std::vector<std::string> warnings;
+    std::vector<std::string> ambiguities;
+    std::vector<std::string> errors;
+};
+
+struct ResolveProjectRequest {
+    std::string project_path;
+    std::string module_name;
+    std::string variant = "Debug";
+    std::string abi = "arm64-v8a";
+    std::string library_name;
+    std::string stack_file;
+    bool read_stdin = false;
+    bool pretty_json = false;
+};
+
+struct ResolveProjectResult {
+    bool ok = false;
+    ResolveProjectRequest request;
+    ProjectResolutionContext project_resolution;
+    std::vector<std::string> errors;
+};
+
 struct RestoreRequest {
     std::string ndk_path;
     std::string so_path;
+    std::string project_path;
+    std::string module_name;
+    std::string variant = "Debug";
+    std::string abi = "arm64-v8a";
+    std::string library_name;
     std::string stack_file;
     bool read_stdin = false;
     bool recursive_so_search = true;
@@ -90,6 +155,7 @@ struct RestoreSummary {
 struct RestoreResult {
     bool ok = false;
     RestoreRequest request;
+    ProjectResolutionContext project_resolution;
     CrashArtifactInfo artifact;
     ToolchainInfo toolchain;
     RestoreSummary summary;
@@ -111,6 +177,13 @@ struct ScanResult {
 struct ValidateRequest {
     std::string ndk_path;
     std::string so_path;
+    std::string project_path;
+    std::string module_name;
+    std::string variant = "Debug";
+    std::string abi = "arm64-v8a";
+    std::string library_name;
+    std::string stack_file;
+    bool read_stdin = false;
     bool pretty_json = false;
 };
 
@@ -118,6 +191,7 @@ struct ValidateResult {
     bool ok = false;
     std::string ndk_path;
     std::string so_path;
+    ProjectResolutionContext project_resolution;
     bool ndk_exists = false;
     bool ndk_valid = false;
     bool so_exists = false;

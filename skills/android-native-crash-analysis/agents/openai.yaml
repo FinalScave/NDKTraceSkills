@@ -1,7 +1,7 @@
 interface:
   display_name: "Android Native Crash Analysis"
-  short_description: "Deterministic Android NDK crash triage and symbolization"
-  default_prompt: "Use $android-native-crash-analysis to analyze an Android native crash with project-aware MCP path resolution, deterministic symbolization, and evidence-driven triage."
+  short_description: "CLI-first Android NDK crash triage with local skill fallback"
+  default_prompt: "Use $android-native-crash-analysis to run ndktrace-cli resolve-project first, fall back to local Android project inspection only when project resolution stays incomplete, then run ndktrace-cli validate and restore before producing evidence-driven triage."
 
 policy:
   allow_implicit_invocation: true

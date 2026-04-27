@@ -1,6 +1,6 @@
 # CLI Guide
 
-This page describes the current C++ command-line scaffold in `cli/`.
+This page describes the current C++ command-line workflow in `cli/`.
 
 ## Build
 
@@ -17,10 +17,12 @@ cli/build/Debug/ndktrace-cli.exe
 
 ## Commands
 
+- `resolve-project`
+  - inspects an Android project, resolves module and ABI context, chooses a local NDK path, and ranks unstripped symbol candidates
 - `scan-ndk`
   - discovers local Android NDK candidates
 - `validate`
-  - checks that an NDK path and symbol path are usable
+  - checks that an NDK path and symbol path are usable, either from explicit arguments or from project resolution
 - `restore`
   - reads crash artifacts, resolves local `.so` files, and invokes `llvm-symbolizer` or `llvm-addr2line`
 
@@ -28,6 +30,14 @@ cli/build/Debug/ndktrace-cli.exe
 
 ```powershell
 Get-Content crash.txt | cli\build\Debug\ndktrace-cli.exe restore --ndk D:\Android\Sdk\ndk\26.1.10909125 --so D:\symbols --stdin --pretty
+```
+
+```powershell
+cli\build\Debug\ndktrace-cli.exe resolve-project --project D:\Project\Android --stack-file crash.txt --pretty
+```
+
+```powershell
+cli\build\Debug\ndktrace-cli.exe restore --project D:\Project\Android --stack-file crash.txt --pretty
 ```
 
 ## Output
@@ -41,7 +51,35 @@ The CLI returns JSON by default. The main top-level sections are:
 - `summary`
 - `frames`
 - `memoryMaps`
+- `projectResolution`
 - `errors`
+
+`resolve-project` returns a top-level `projectResolution` contract with:
+
+- `status`
+- `module`
+- `moduleName`
+- `modulePath`
+- `variant`
+- `abi`
+- `sdkDir`
+- `ndkVersion`
+- `ndkPath`
+- `preferredSymbolPath`
+- `moduleCandidates`
+- `libraryNames`
+- `symbolCandidates`
+- `warnings`
+- `ambiguities`
+
+The `status` field is one of:
+
+- `resolved`
+- `partial`
+- `ambiguous`
+- `not_found`
+
+`validate` and `restore` also return `projectResolution` when project-aware arguments were used. This lets the skill decide whether it can continue directly or should inspect the workspace and retry with explicit paths.
 
 The parser module preserves more frame context than the initial scaffold. It now keeps:
 

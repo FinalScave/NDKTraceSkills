@@ -16,6 +16,7 @@ add_library(
     src/elf_build_id.cpp
     src/parser.cpp
     src/platform.cpp
+    src/project_resolver.cpp
     src/services.cpp
     src/json_output.cpp
     src/symbol_file_resolver.cpp
@@ -65,9 +66,17 @@ add_executable(
 
 target_link_libraries(ndktrace-symbol-tests PRIVATE ndktrace-core)
 
+add_executable(
+    ndktrace-project-tests
+    tests/test_project_resolver.cpp
+)
+
+target_link_libraries(ndktrace-project-tests PRIVATE ndktrace-core)
+
 add_test(NAME ndktrace-cli-tests COMMAND ndktrace-cli-tests)
 add_test(NAME ndktrace-artifact-tests COMMAND ndktrace-artifact-tests)
 add_test(NAME ndktrace-symbol-tests COMMAND ndktrace-symbol-tests)
+add_test(NAME ndktrace-project-tests COMMAND ndktrace-project-tests)
 
 if(MSVC)
     target_compile_options(ndktrace-core PRIVATE /W4 /permissive-)
@@ -75,10 +84,12 @@ if(MSVC)
     target_compile_options(ndktrace-cli-tests PRIVATE /W4 /permissive-)
     target_compile_options(ndktrace-artifact-tests PRIVATE /W4 /permissive-)
     target_compile_options(ndktrace-symbol-tests PRIVATE /W4 /permissive-)
+    target_compile_options(ndktrace-project-tests PRIVATE /W4 /permissive-)
 else()
     target_compile_options(ndktrace-core PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(ndktrace-cli PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(ndktrace-cli-tests PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(ndktrace-artifact-tests PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(ndktrace-symbol-tests PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(ndktrace-project-tests PRIVATE -Wall -Wextra -Wpedantic)
 endif()

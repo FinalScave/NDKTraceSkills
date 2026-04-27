@@ -6,6 +6,7 @@
 #include "ndktrace/crash_artifact_parser.h"
 #include "ndktrace/parser.h"
 #include "ndktrace/platform.h"
+#include "ndktrace/project_resolver.h"
 #include "ndktrace/symbol_file_resolver.h"
 
 namespace ndktrace {
@@ -80,33 +81,141 @@ std::vector<std::string> BuildToolCommand(
     return {};
 }
 
+std::string ReadOptionalStackInput(const std::string& stack_file, bool read_stdin) {
+    if (read_stdin) {
+        return ReadStdIn();
+    }
+    if (!stack_file.empty()) {
+        return ReadTextFile(stack_file);
+    }
+    return {};
+}
+
+ProjectResolverRequest BuildProjectRequest(
+    const std::string& project_path,
+    const std::string& module_name,
+    const std::string& variant,
+    const std::string& abi,
+    const std::string& library_name) {
+    ProjectResolverRequest project_request;
+    project_request.project_path = project_path;
+    project_request.module_name = module_name;
+    project_request.variant = variant;
+    project_request.abi = abi;
+    project_request.library_name = library_name;
+    return project_request;
+}
+
+bool ProjectResolutionCanSupplyPaths(const ProjectResolutionContext& context) {
+    return context.attempted && context.status == "resolved";
+}
+
+void AppendProjectResolutionErrors(
+    const ProjectResolutionContext& context,
+    std::vector<std::string>& errors) {
+    if (!context.attempted || context.status == "resolved") {
+        return;
+    }
+
+    if (!context.errors.empty()) {
+        errors.insert(errors.end(), context.errors.begin(), context.errors.end());
+    }
+    if (!context.ambiguities.empty()) {
+        errors.insert(errors.end(), context.ambiguities.begin(), context.ambiguities.end());
+    }
+    if (errors.empty()) {
+        errors.push_back("Android project inputs could not be fully resolved.");
+    }
+}
+
 }  // namespace
+
+ResolveProjectResult RunResolveProject(const ResolveProjectRequest& request) {
+    ResolveProjectResult result;
+    result.request = request;
+
+    if (request.project_path.empty()) {
+        result.errors.push_back("The --project argument is required.");
+        return result;
+    }
+
+    const std::string crash_text = ReadOptionalStackInput(request.stack_file, request.read_stdin);
+    result.project_resolution = ResolveAndroidProject(
+        BuildProjectRequest(
+            request.project_path,
+            request.module_name,
+            request.variant,
+            request.abi,
+            request.library_name),
+        crash_text);
+    result.ok = result.project_resolution.ok;
+    result.errors = result.project_resolution.errors;
+    if (!result.project_resolution.ok && result.errors.empty() && !result.project_resolution.ambiguities.empty()) {
+        result.errors = result.project_resolution.ambiguities;
+    }
+    return result;
+}
 
 RestoreResult RunRestore(const RestoreRequest& request) {
     RestoreResult result;
-    result.request = request;
+    RestoreRequest effective_request = request;
+    result.request = effective_request;
 
-    if (request.ndk_path.empty()) {
-        result.errors.push_back("The --ndk argument is required.");
-    }
-    if (request.so_path.empty()) {
-        result.errors.push_back("The --so argument is required.");
-    }
-    if (!request.read_stdin && request.stack_file.empty()) {
+    if (!effective_request.read_stdin && effective_request.stack_file.empty()) {
         result.errors.push_back("Use --stack-file or --stdin to provide a stack trace.");
     }
     if (!result.errors.empty()) {
         return result;
     }
 
-    const std::filesystem::path ndk_path(request.ndk_path);
-    const std::filesystem::path so_path(request.so_path);
+    const std::string stack_input = ReadOptionalStackInput(effective_request.stack_file, effective_request.read_stdin);
+
+    if ((!effective_request.ndk_path.empty() || !effective_request.so_path.empty()) == false &&
+        effective_request.project_path.empty()) {
+        result.errors.push_back("Provide --ndk and --so, or use --project to resolve them from an Android project.");
+        return result;
+    }
+
+    if (!effective_request.project_path.empty() &&
+        (effective_request.ndk_path.empty() || effective_request.so_path.empty())) {
+        result.project_resolution = ResolveAndroidProject(
+            BuildProjectRequest(
+                effective_request.project_path,
+                effective_request.module_name,
+                effective_request.variant,
+                effective_request.abi,
+                effective_request.library_name),
+            stack_input);
+        if (effective_request.ndk_path.empty() && ProjectResolutionCanSupplyPaths(result.project_resolution)) {
+            effective_request.ndk_path = result.project_resolution.ndk_path;
+        }
+        if (effective_request.so_path.empty() && ProjectResolutionCanSupplyPaths(result.project_resolution)) {
+            effective_request.so_path = result.project_resolution.preferred_symbol_path;
+        }
+        AppendProjectResolutionErrors(result.project_resolution, result.errors);
+    }
+
+    if (effective_request.ndk_path.empty()) {
+        result.errors.push_back("The --ndk argument is required.");
+    }
+    if (effective_request.so_path.empty()) {
+        result.errors.push_back("The --so argument is required.");
+    }
+    if (!result.errors.empty()) {
+        result.request = effective_request;
+        return result;
+    }
+
+    result.request = effective_request;
+
+    const std::filesystem::path ndk_path(effective_request.ndk_path);
+    const std::filesystem::path so_path(effective_request.so_path);
     if (!IsValidNdkDirectory(ndk_path)) {
-        result.errors.push_back("The NDK path does not look valid: " + request.ndk_path);
+        result.errors.push_back("The NDK path does not look valid: " + effective_request.ndk_path);
         return result;
     }
     if (!std::filesystem::exists(so_path)) {
-        result.errors.push_back("The symbol path does not exist: " + request.so_path);
+        result.errors.push_back("The symbol path does not exist: " + effective_request.so_path);
         return result;
     }
 
@@ -114,13 +223,6 @@ RestoreResult RunRestore(const RestoreRequest& request) {
     if (!result.toolchain.has_symbolizer && !result.toolchain.has_addr2line) {
         result.errors.push_back("No llvm-symbolizer or llvm-addr2line binary was found under the NDK.");
         return result;
-    }
-
-    std::string stack_input;
-    if (request.read_stdin) {
-        stack_input = ReadStdIn();
-    } else {
-        stack_input = ReadTextFile(request.stack_file);
     }
 
     const ParsedCrashArtifact artifact = ParseCrashArtifactText(stack_input);
@@ -161,8 +263,8 @@ RestoreResult RunRestore(const RestoreRequest& request) {
             parsed.library_name,
             parsed.library_path,
             frame.build_id,
-            request.recursive_so_search,
-            request.match_mode});
+            effective_request.recursive_so_search,
+            effective_request.match_mode});
         if (!symbol_file.path.has_value()) {
             frame.status = symbol_file.had_build_id_mismatch ? "build_id_mismatch" : "missing_so";
             if (symbol_file.had_build_id_mismatch && !frame.build_id.empty()) {
@@ -190,7 +292,7 @@ RestoreResult RunRestore(const RestoreRequest& request) {
             result.toolchain,
             *symbol_file.path,
             parsed.address,
-            request.tool_preference,
+            effective_request.tool_preference,
             selected_tool);
         if (command.empty()) {
             frame.status = "tool_missing";
@@ -236,21 +338,48 @@ ScanResult RunScan(const ScanRequest&) {
 
 ValidateResult RunValidate(const ValidateRequest& request) {
     ValidateResult result;
-    result.ndk_path = request.ndk_path;
-    result.so_path = request.so_path;
+    ValidateRequest effective_request = request;
 
-    if (request.ndk_path.empty()) {
+    if ((!effective_request.ndk_path.empty() || !effective_request.so_path.empty()) == false &&
+        effective_request.project_path.empty()) {
+        result.errors.push_back("Provide --ndk and --so, or use --project to resolve them from an Android project.");
+    }
+
+    if (!effective_request.project_path.empty() &&
+        (effective_request.ndk_path.empty() || effective_request.so_path.empty())) {
+        const std::string crash_text = ReadOptionalStackInput(effective_request.stack_file, effective_request.read_stdin);
+        result.project_resolution = ResolveAndroidProject(
+            BuildProjectRequest(
+                effective_request.project_path,
+                effective_request.module_name,
+                effective_request.variant,
+                effective_request.abi,
+                effective_request.library_name),
+            crash_text);
+        if (effective_request.ndk_path.empty() && ProjectResolutionCanSupplyPaths(result.project_resolution)) {
+            effective_request.ndk_path = result.project_resolution.ndk_path;
+        }
+        if (effective_request.so_path.empty() && ProjectResolutionCanSupplyPaths(result.project_resolution)) {
+            effective_request.so_path = result.project_resolution.preferred_symbol_path;
+        }
+        AppendProjectResolutionErrors(result.project_resolution, result.errors);
+    }
+
+    result.ndk_path = effective_request.ndk_path;
+    result.so_path = effective_request.so_path;
+
+    if (effective_request.ndk_path.empty()) {
         result.errors.push_back("The --ndk argument is required.");
     }
-    if (request.so_path.empty()) {
+    if (effective_request.so_path.empty()) {
         result.errors.push_back("The --so argument is required.");
     }
     if (!result.errors.empty()) {
         return result;
     }
 
-    const std::filesystem::path ndk_path(request.ndk_path);
-    const std::filesystem::path so_path(request.so_path);
+    const std::filesystem::path ndk_path(effective_request.ndk_path);
+    const std::filesystem::path so_path(effective_request.so_path);
 
     result.ndk_exists = std::filesystem::exists(ndk_path);
     result.ndk_valid = IsValidNdkDirectory(ndk_path);
